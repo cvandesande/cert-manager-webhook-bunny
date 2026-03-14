@@ -268,7 +268,10 @@ authenticator = manual
 manual_auth_hook    = bunny-certbot-hook present
 manual_cleanup_hook = bunny-certbot-hook cleanup
 manual_public_ip_logging_ok = True
+pref_challs = dns-01
 ```
+
+> `pref_challs = dns-01` is required to prevent certbot from attempting HTTP-01 in addition to DNS-01. Without it, Let's Encrypt may try to reach your server over HTTP and fail if port 80 is not publicly accessible.
 
 ### API key lookup order
 
