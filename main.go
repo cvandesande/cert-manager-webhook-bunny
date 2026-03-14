@@ -44,6 +44,7 @@ func (c *bunnySolver) Name() string {
 }
 
 func (c *bunnySolver) Present(ch *v1alpha1.ChallengeRequest) error {
+	log.Printf("Present: domain=%s fqdn=%s zone=%s", ch.DNSName, ch.ResolvedFQDN, ch.ResolvedZone)
 	bunnyClient, err := c.newAPIClient(ch)
 	if err != nil {
 		return err
@@ -58,25 +59,27 @@ func (c *bunnySolver) Present(ch *v1alpha1.ChallengeRequest) error {
 		return err
 	}
 	if val != nil {
-		log.Println("TXT record is present, skipping")
+		log.Printf("Present: TXT record already exists for %s, skipping", ch.ResolvedFQDN)
 		return nil
 	}
 	recordType := 3
 	var ttl int32 = 120
 	record := &bunny.AddOrUpdateDNSRecordOptions{
-		Type: &recordType,
+		Type:  &recordType,
 		Value: &ch.Key,
-		Name: &recordName,
-		TTL: &ttl,
+		Name:  &recordName,
+		TTL:   &ttl,
 	}
 	_, err = bunnyClient.DNSZone.AddDNSRecord(context.Background(), zoneID, record)
 	if err != nil {
 		return fmt.Errorf("failed to add TXT record: %s", err.Error())
 	}
+	log.Printf("Present: created TXT record %s in zone %s (zoneID=%d)", ch.ResolvedFQDN, ch.ResolvedZone, zoneID)
 	return nil
 }
 
 func (c *bunnySolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
+	log.Printf("CleanUp: domain=%s fqdn=%s zone=%s", ch.DNSName, ch.ResolvedFQDN, ch.ResolvedZone)
 	bunnyClient, err := c.newAPIClient(ch)
 	if err != nil {
 		return err
@@ -91,12 +94,13 @@ func (c *bunnySolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
 		return fmt.Errorf("failed to get zone records: %v", err)
 	}
 	if record == nil {
+		log.Printf("CleanUp: TXT record not found for %s, nothing to delete", ch.ResolvedFQDN)
 		return nil
 	}
-	if err := bunnyClient.DNSZone.DeleteDNSRecord(context.Background(), zoneID,
-	    *record.ID); err != nil {
+	if err := bunnyClient.DNSZone.DeleteDNSRecord(context.Background(), zoneID, *record.ID); err != nil {
 		return fmt.Errorf("failed to delete TXT record: %v", err)
 	}
+	log.Printf("CleanUp: deleted TXT record %s from zone %s (zoneID=%d)", ch.ResolvedFQDN, ch.ResolvedZone, zoneID)
 	return nil
 }
 
