@@ -98,6 +98,54 @@ func ResolveZoneID(ctx context.Context, client *bunny.Client, zoneName string) (
 	return 0, fmt.Errorf("DNS zone %q not found in Bunny.net account", domain)
 }
 
+// FindZoneForDomain fetches all zones from the account and returns the name
+// and ID of the zone that best (longest suffix) covers domain.
+//
+// This is needed for subdomains: if domain is "sub.example.com" and the
+// registered zone is "example.com", this function returns "example.com." and
+// its ID. The returned zone name always has a trailing dot.
+func FindZoneForDomain(ctx context.Context, client *bunny.Client, domain string) (string, int64, error) {
+	domain = strings.TrimSuffix(domain, ".")
+
+	// Collect all zones in one pass.
+	type zoneEntry struct {
+		domain string
+		id     int64
+	}
+	var all []zoneEntry
+	var page int32
+	for page = 1; ; page++ {
+		zones, err := client.DNSZone.List(ctx, &bunny.PaginationOptions{
+			Page:    page,
+			PerPage: 100,
+		})
+		if err != nil {
+			return "", 0, fmt.Errorf("failed to list DNS zones: %w", err)
+		}
+		for _, z := range zones.Items {
+			all = append(all, zoneEntry{*z.Domain, *z.ID})
+		}
+		if !*zones.HasMoreItems {
+			break
+		}
+	}
+
+	// Pick the longest zone name that is a suffix of domain.
+	bestName := ""
+	bestID := int64(0)
+	for _, z := range all {
+		match := z.domain == domain || strings.HasSuffix(domain, "."+z.domain)
+		if match && len(z.domain) > len(bestName) {
+			bestName = z.domain
+			bestID = z.id
+		}
+	}
+	if bestName == "" {
+		return "", 0, fmt.Errorf("no Bunny.net DNS zone found that covers domain %q", domain)
+	}
+	return bestName + ".", bestID, nil
+}
+
 // HasTXTRecord checks whether a TXT record with the given name and value
 // already exists in the zone. Returns the record if found, nil otherwise.
 func HasTXTRecord(ctx context.Context, client *bunny.Client, name, key string, zoneID int64) (*bunny.DNSRecord, error) {

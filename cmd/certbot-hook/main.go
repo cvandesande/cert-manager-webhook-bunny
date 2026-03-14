@@ -6,10 +6,11 @@
 //	--manual-auth-hook    "bunny-certbot-hook present"
 //	--manual-cleanup-hook "bunny-certbot-hook cleanup"
 //
-// API key — provide one of:
+// API key — provide one of (checked in this order):
 //
 //	BUNNY_API_KEY       Bunny.net API access key (plain value)
 //	BUNNY_API_KEY_FILE  Path to a file whose first line is the API key
+//	/etc/bunny/api-key  Default key file location
 //
 // Environment variables set automatically by certbot:
 //
@@ -53,17 +54,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Derive the FQDN and zone in the dotted form that bunnydns expects.
-	// Certbot gives us "example.com"; we need "_acme-challenge.example.com." and "example.com."
+	// The challenge record is always _acme-challenge.<domain>.
 	fqdn := "_acme-challenge." + domain + "."
-	zone := domain + "."
 
 	client := bunny.NewClient(apiKey)
 	ctx := context.Background()
 
+	// Auto-discover which Bunny DNS zone covers this domain.
+	// This handles subdomains: CERTBOT_DOMAIN=sub.example.com → zone "example.com."
+	zone, _, err := bunnydns.FindZoneForDomain(ctx, client, domain)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "bunny-certbot-hook: zone discovery failed: %v\n", err)
+		os.Exit(1)
+	}
+
 	switch command {
 	case "present":
-		fmt.Printf("bunny-certbot-hook: setting TXT record %s\n", fqdn)
+		fmt.Printf("bunny-certbot-hook: setting TXT record %s (zone %s)\n", fqdn, zone)
 		if err := bunnydns.PresentRecord(ctx, client, fqdn, zone, validation); err != nil {
 			fmt.Fprintf(os.Stderr, "bunny-certbot-hook: present failed: %v\n", err)
 			os.Exit(1)
@@ -71,7 +78,7 @@ func main() {
 		fmt.Println("bunny-certbot-hook: TXT record created successfully")
 
 	case "cleanup":
-		fmt.Printf("bunny-certbot-hook: removing TXT record %s\n", fqdn)
+		fmt.Printf("bunny-certbot-hook: removing TXT record %s (zone %s)\n", fqdn, zone)
 		if err := bunnydns.CleanUpRecord(ctx, client, fqdn, zone, validation); err != nil {
 			fmt.Fprintf(os.Stderr, "bunny-certbot-hook: cleanup failed: %v\n", err)
 			os.Exit(1)
@@ -84,25 +91,42 @@ func main() {
 	}
 }
 
-// resolveAPIKey returns the Bunny.net API key from the environment.
-// It checks BUNNY_API_KEY first; if that is unset it reads the first line of
-// the file named by BUNNY_API_KEY_FILE.
+const defaultKeyFile = "/etc/bunny/api-key"
+
+// resolveAPIKey returns the Bunny.net API key using the following precedence:
+//  1. BUNNY_API_KEY environment variable (plain value)
+//  2. File named by BUNNY_API_KEY_FILE environment variable
+//  3. Default key file at /etc/bunny/api-key
 func resolveAPIKey() (string, error) {
+	// 1. Plain env var
 	if key := os.Getenv("BUNNY_API_KEY"); key != "" {
 		return key, nil
 	}
-	keyFile := os.Getenv("BUNNY_API_KEY_FILE")
-	if keyFile == "" {
-		return "", fmt.Errorf("environment variable BUNNY_API_KEY is required but not set\n" +
-			"  (alternatively set BUNNY_API_KEY_FILE to a file containing the key)")
+	// 2. Explicit file path
+	if keyFile := os.Getenv("BUNNY_API_KEY_FILE"); keyFile != "" {
+		return readKeyFile(keyFile)
 	}
-	data, err := os.ReadFile(keyFile)
+	// 3. Well-known default path
+	if _, err := os.Stat(defaultKeyFile); err == nil {
+		return readKeyFile(defaultKeyFile)
+	}
+	return "", fmt.Errorf(
+		"Bunny.net API key not found — provide one of:\n" +
+			"  BUNNY_API_KEY=<key>\n" +
+			"  BUNNY_API_KEY_FILE=<path>\n" +
+			"  or place the key in " + defaultKeyFile,
+	)
+}
+
+// readKeyFile reads and returns the first non-empty line of the file at path.
+func readKeyFile(path string) (string, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", fmt.Errorf("failed to read BUNNY_API_KEY_FILE %q: %w", keyFile, err)
+		return "", fmt.Errorf("failed to read key file %q: %w", path, err)
 	}
 	key := strings.TrimSpace(strings.SplitN(string(data), "\n", 2)[0])
 	if key == "" {
-		return "", fmt.Errorf("BUNNY_API_KEY_FILE %q is empty", keyFile)
+		return "", fmt.Errorf("key file %q is empty", path)
 	}
 	return key, nil
 }

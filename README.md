@@ -238,45 +238,54 @@ Replace `amd64` with `arm64` on ARM hosts.
 
 ### Usage
 
-Store your Bunny.net **Account API Key** (from [dash.bunny.net/account/apikey](https://dash.bunny.net/account/apikey)) in a root-only file:
+Store your Bunny.net **Account API Key** (from [dash.bunny.net/account/apikey](https://dash.bunny.net/account/apikey)) in the default location:
 
 ```bash
-echo 'your-bunny-api-key-here' > /root/.secrets/bunny/api-key
-chmod 600 /root/.secrets/bunny/api-key
+mkdir -p /etc/bunny
+echo 'your-bunny-api-key-here' > /etc/bunny/api-key
+chmod 600 /etc/bunny/api-key
 ```
 
-Then run certbot with manual DNS hooks, pointing at that file via `BUNNY_API_KEY_FILE`:
+Then run certbot with manual DNS hooks — no extra environment variables needed:
 
 ```bash
 certbot certonly \
   --manual \
   --preferred-challenges dns \
-  --manual-auth-hook    "BUNNY_API_KEY_FILE=/root/.secrets/bunny/api-key bunny-certbot-hook present" \
-  --manual-cleanup-hook "BUNNY_API_KEY_FILE=/root/.secrets/bunny/api-key bunny-certbot-hook cleanup" \
+  --manual-auth-hook    "bunny-certbot-hook present" \
+  --manual-cleanup-hook "bunny-certbot-hook cleanup" \
   -d "example.com" \
   -d "*.example.com"
 ```
 
-Certbot sets `CERTBOT_DOMAIN` and `CERTBOT_VALIDATION` automatically before invoking each hook.
+Certbot sets `CERTBOT_DOMAIN` and `CERTBOT_VALIDATION` automatically before invoking each hook. The binary auto-discovers the correct Bunny DNS zone, so both apex domains (`example.com`) and subdomains (`sub.example.com`) work without any extra configuration.
 
-For **auto-renewal**, set the hooks in `/etc/letsencrypt/renewal/example.com.conf`:
+For **auto-renewal**, add these lines to `/etc/letsencrypt/renewal/example.com.conf`:
 
 ```ini
 [renewalparams]
 authenticator = manual
-manual_auth_hook    = BUNNY_API_KEY_FILE=/root/.secrets/bunny/api-key bunny-certbot-hook present
-manual_cleanup_hook = BUNNY_API_KEY_FILE=/root/.secrets/bunny/api-key bunny-certbot-hook cleanup
+manual_auth_hook    = bunny-certbot-hook present
+manual_cleanup_hook = bunny-certbot-hook cleanup
 manual_public_ip_logging_ok = True
 ```
 
-### Environment variables
+### API key lookup order
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `BUNNY_API_KEY` | one of these two | Bunny.net Account API Key (plain value) |
-| `BUNNY_API_KEY_FILE` | one of these two | Path to a file whose first line is the API key |
-| `CERTBOT_DOMAIN` | set by certbot | Domain being validated (e.g. `example.com`) |
-| `CERTBOT_VALIDATION` | set by certbot | Value to place in the TXT record |
+The binary checks these locations in order and uses the first key found:
+
+| Priority | Source | Notes |
+|----------|--------|-------|
+| 1 | `BUNNY_API_KEY` env var | Plain key value |
+| 2 | `BUNNY_API_KEY_FILE` env var | Path to a file containing the key |
+| 3 | `/etc/bunny/api-key` | Default file (recommended) |
+
+### Certbot environment variables (set automatically)
+
+| Variable | Description |
+|----------|-------------|
+| `CERTBOT_DOMAIN` | Domain being validated (e.g. `example.com`) |
+| `CERTBOT_VALIDATION` | Value to place in the TXT record |
 
 ### Build from source
 
