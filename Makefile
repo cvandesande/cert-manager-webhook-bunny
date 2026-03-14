@@ -60,6 +60,17 @@ build-multiplatform:
 	    --push \
 	    .
 
+# Package and push the Helm chart to an OCI registry.
+# Usage: make helm-push-oci CHART_VERSION=1.0.0 OCI_REGISTRY=oci://ghcr.io/cvandesande/charts
+OCI_REGISTRY ?= oci://ghcr.io/cvandesande/charts
+CHART_VERSION ?= $(shell grep '^version:' deploy/cert-manager-webhook-bunny/Chart.yaml | awk '{print $$2}')
+
+.PHONY: helm-push-oci
+helm-push-oci:
+	helm package deploy/cert-manager-webhook-bunny --version "$(CHART_VERSION)"
+	helm push cert-manager-webhook-bunny-$(CHART_VERSION).tgz $(OCI_REGISTRY)
+	rm -f cert-manager-webhook-bunny-$(CHART_VERSION).tgz
+
 .PHONY: helm-lint
 helm-lint:
 	helm lint deploy/cert-manager-webhook-bunny

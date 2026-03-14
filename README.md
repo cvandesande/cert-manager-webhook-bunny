@@ -20,14 +20,19 @@ This is a maintained fork of the abandoned [gitlab.com/digilol/cert-manager-webh
 
 ### 1. Install the webhook via Helm
 
+#### From the OCI registry (recommended)
+
+Releases are published automatically to the GitHub Container Registry as OCI Helm charts:
+
 ```bash
 helm install cert-manager-webhook-bunny \
-  deploy/cert-manager-webhook-bunny \
+  oci://ghcr.io/cvandesande/charts/cert-manager-webhook-bunny \
   --namespace cert-manager \
-  --create-namespace
+  --create-namespace \
+  --version 1.0.0
 ```
 
-Or from the GitHub repository (after cloning):
+#### From source (after cloning)
 
 ```bash
 git clone https://github.com/cvandesande/cert-manager-webhook-bunny.git
@@ -36,7 +41,7 @@ cd cert-manager-webhook-bunny
 helm install cert-manager-webhook-bunny \
   deploy/cert-manager-webhook-bunny \
   --namespace cert-manager \
-  --set groupName=acme.bunny.net
+  --create-namespace
 ```
 
 ### 2. Create a Secret with your Bunny.net API access key
