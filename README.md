@@ -5,7 +5,7 @@ A [cert-manager](https://cert-manager.io) ACME DNS01 webhook solver for [Bunny D
 This is a maintained fork of the abandoned [gitlab.com/digilol/cert-manager-webhook-bunny](https://gitlab.com/digilol/cert-manager-webhook-bunny) project, updated for:
 - Go 1.26
 - cert-manager v1.20
-- Kubernetes 1.29–1.33
+- Kubernetes 1.29–1.35
 - Installable via Helm chart
 - Multi-platform image (linux/amd64 + linux/arm64)
 - Distroless runtime (`gcr.io/distroless/static-debian13:nonroot`, UID 65532) — no shell, minimal attack surface
