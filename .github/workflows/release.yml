@@ -5,24 +5,36 @@ on:
     tags:
       - "v*"
 
+# Build each platform natively (no QEMU) then merge into a single multi-arch
+# manifest list so every architecture shares one tag / digest.
+#
+#  build  ──(linux/amd64)──> ubuntu-latest (x64)  ──┐ digest only
+#  build  ──(linux/arm64)──> ubuntu-24.04-arm      ──┤
+#  merge  ──────────────────────────────────────────> manifest list
+#  chart  ──────────────────────────────────────────> OCI helm push
+
 jobs:
-  release:
-    runs-on: ubuntu-latest
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 1. Build each platform on a matching native runner
+  # ─────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
     permissions:
-      contents: read
-      packages: write   # required to push to ghcr.io
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      # ── Docker image ────────────────────────────────────────────────────────
-
-      - name: Set up QEMU (for arm64 cross-build)
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -31,7 +43,76 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+
+      # Push to registry by digest only — no tag yet (the merge job handles that).
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: >-
+            type=image,
+            name=ghcr.io/${{ github.repository }},
+            push-by-digest=true,
+            name-canonical=true,
+            push=true
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
+
+      # Save the digest so the merge job can reference it.
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 2. Merge platform digests into a single multi-arch manifest list
+  # ─────────────────────────────────────────────────────────────────────────
+  merge:
+    name: Merge manifest list
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      packages: write
+
+    steps:
+      - name: Download all digest artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract Docker metadata (tags)
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -41,18 +122,39 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
 
-      - name: Build and push multi-platform image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      # imagetools create writes the OCI manifest list; -t flags come from jq
+      - name: Create and push manifest list
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf 'ghcr.io/${{ github.repository }}@sha256:%s ' *)
 
-      # ── Helm chart (OCI) ────────────────────────────────────────────────────
+      - name: Inspect manifest list
+        run: |
+          docker buildx imagetools inspect \
+            ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 3. Package and push the Helm chart as an OCI artifact
+  # ─────────────────────────────────────────────────────────────────────────
+  chart:
+    name: Push Helm chart (OCI)
+    runs-on: ubuntu-latest
+    needs: merge      # ensure the image exists before publishing the chart
+    permissions:
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Helm
         uses: azure/setup-helm@v4
