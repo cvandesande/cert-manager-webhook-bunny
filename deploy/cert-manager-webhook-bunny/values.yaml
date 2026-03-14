@@ -8,7 +8,8 @@ fullnameOverride: ""
 # Override with your own registry when deploying from a private build.
 image:
   repository: ghcr.io/cvandesande/cert-manager-webhook-bunny
-  tag: latest
+  # tag defaults to .Chart.AppVersion when left empty — set explicitly to pin a different version.
+  tag: ""
   pullPolicy: IfNotPresent
 
 replicaCount: 1

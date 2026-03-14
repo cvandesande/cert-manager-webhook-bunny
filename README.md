@@ -128,7 +128,7 @@ The following table lists the configurable parameters and their defaults:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Container image repository | `ghcr.io/cvandesande/cert-manager-webhook-bunny` |
-| `image.tag` | Container image tag | `latest` |
+| `image.tag` | Container image tag (defaults to `appVersion` when empty) | `""` |
 | `image.pullPolicy` | Image pull policy | `IfNotPresent` |
 | `replicaCount` | Number of webhook replicas | `1` |
 | `groupName` | ACME DNS01 solver group name | `acme.bunny.net` |
