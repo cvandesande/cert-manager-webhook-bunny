@@ -238,38 +238,43 @@ Replace `amd64` with `arm64` on ARM hosts.
 
 ### Usage
 
-Export your Bunny.net **Account API Key** (from [dash.bunny.net/account/apikey](https://dash.bunny.net/account/apikey)):
+Store your Bunny.net **Account API Key** (from [dash.bunny.net/account/apikey](https://dash.bunny.net/account/apikey)) in a root-only file:
 
 ```bash
-export BUNNY_API_KEY=your-api-key-here
+echo 'your-bunny-api-key-here' > /root/.secrets/bunny/api-key
+chmod 600 /root/.secrets/bunny/api-key
 ```
 
-Then run certbot with manual DNS hooks:
+Then run certbot with manual DNS hooks, pointing at that file via `BUNNY_API_KEY_FILE`:
 
 ```bash
 certbot certonly \
   --manual \
   --preferred-challenges dns \
-  --manual-auth-hook    "bunny-certbot-hook present" \
-  --manual-cleanup-hook "bunny-certbot-hook cleanup" \
+  --manual-auth-hook    "BUNNY_API_KEY_FILE=/root/.secrets/bunny/api-key bunny-certbot-hook present" \
+  --manual-cleanup-hook "BUNNY_API_KEY_FILE=/root/.secrets/bunny/api-key bunny-certbot-hook cleanup" \
   -d "example.com" \
   -d "*.example.com"
 ```
 
-Certbot sets `CERTBOT_DOMAIN` and `CERTBOT_VALIDATION` automatically before invoking each hook. The binary reads `BUNNY_API_KEY` from the environment; no config files are required.
+Certbot sets `CERTBOT_DOMAIN` and `CERTBOT_VALIDATION` automatically before invoking each hook.
 
-> **Tip:** To avoid typing the export every time, add `BUNNY_API_KEY=...` to a root-only file (e.g. `/etc/bunny.env`) and source it in the hook call:
->
-> ```bash
-> --manual-auth-hook    "source /etc/bunny.env && bunny-certbot-hook present" \
-> --manual-cleanup-hook "source /etc/bunny.env && bunny-certbot-hook cleanup"
-> ```
+For **auto-renewal**, set the hooks in `/etc/letsencrypt/renewal/example.com.conf`:
+
+```ini
+[renewalparams]
+authenticator = manual
+manual_auth_hook    = BUNNY_API_KEY_FILE=/root/.secrets/bunny/api-key bunny-certbot-hook present
+manual_cleanup_hook = BUNNY_API_KEY_FILE=/root/.secrets/bunny/api-key bunny-certbot-hook cleanup
+manual_public_ip_logging_ok = True
+```
 
 ### Environment variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `BUNNY_API_KEY` | ✅ | Bunny.net Account API Key |
+| `BUNNY_API_KEY` | one of these two | Bunny.net Account API Key (plain value) |
+| `BUNNY_API_KEY_FILE` | one of these two | Path to a file whose first line is the API key |
 | `CERTBOT_DOMAIN` | set by certbot | Domain being validated (e.g. `example.com`) |
 | `CERTBOT_VALIDATION` | set by certbot | Value to place in the TXT record |
 

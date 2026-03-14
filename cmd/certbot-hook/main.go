@@ -6,9 +6,10 @@
 //	--manual-auth-hook    "bunny-certbot-hook present"
 //	--manual-cleanup-hook "bunny-certbot-hook cleanup"
 //
-// Required environment variables:
+// API key — provide one of:
 //
-//	BUNNY_API_KEY       Bunny.net API access key
+//	BUNNY_API_KEY       Bunny.net API access key (plain value)
+//	BUNNY_API_KEY_FILE  Path to a file whose first line is the API key
 //
 // Environment variables set automatically by certbot:
 //
@@ -20,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	bunny "github.com/simplesurance/bunny-go"
 
@@ -33,7 +35,7 @@ func main() {
 	}
 	command := os.Args[1]
 
-	apiKey, err := requireEnv("BUNNY_API_KEY")
+	apiKey, err := resolveAPIKey()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -80,6 +82,29 @@ func main() {
 		fmt.Fprintf(os.Stderr, "bunny-certbot-hook: unknown command %q (want present or cleanup)\n", command)
 		os.Exit(1)
 	}
+}
+
+// resolveAPIKey returns the Bunny.net API key from the environment.
+// It checks BUNNY_API_KEY first; if that is unset it reads the first line of
+// the file named by BUNNY_API_KEY_FILE.
+func resolveAPIKey() (string, error) {
+	if key := os.Getenv("BUNNY_API_KEY"); key != "" {
+		return key, nil
+	}
+	keyFile := os.Getenv("BUNNY_API_KEY_FILE")
+	if keyFile == "" {
+		return "", fmt.Errorf("environment variable BUNNY_API_KEY is required but not set\n" +
+			"  (alternatively set BUNNY_API_KEY_FILE to a file containing the key)")
+	}
+	data, err := os.ReadFile(keyFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to read BUNNY_API_KEY_FILE %q: %w", keyFile, err)
+	}
+	key := strings.TrimSpace(strings.SplitN(string(data), "\n", 2)[0])
+	if key == "" {
+		return "", fmt.Errorf("BUNNY_API_KEY_FILE %q is empty", keyFile)
+	}
+	return key, nil
 }
 
 // requireEnv returns the value of the named environment variable, or an error
