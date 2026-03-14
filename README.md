@@ -42,7 +42,7 @@ helm install cert-manager-webhook-bunny \
   oci://ghcr.io/cvandesande/charts/cert-manager-webhook-bunny \
   --namespace cert-manager \
   --create-namespace \
-  --version 1.0.0
+  --version 1.1.2
 ```
 
 **Upgrade to a newer version:**
@@ -50,13 +50,13 @@ helm install cert-manager-webhook-bunny \
 helm upgrade cert-manager-webhook-bunny \
   oci://ghcr.io/cvandesande/charts/cert-manager-webhook-bunny \
   --namespace cert-manager \
-  --version 1.0.1
+  --version 1.1.2
 ```
 
 **List available chart versions** (requires Helm 3.8+, which supports OCI natively):
 ```bash
 # pull the latest and inspect
-helm show chart oci://ghcr.io/cvandesande/charts/cert-manager-webhook-bunny --version 1.0.0
+helm show chart oci://ghcr.io/cvandesande/charts/cert-manager-webhook-bunny --version 1.1.2
 ```
 
 All releases and their changelogs are listed on the
@@ -228,9 +228,9 @@ Pre-built binaries for Linux (amd64 and arm64) are attached to every
 [GitHub Release](https://github.com/cvandesande/cert-manager-webhook-bunny/releases).
 
 ```bash
-# Example: download the amd64 binary for v1.0.2
+# Example: download the amd64 binary for v1.1.2
 curl -L -o /usr/local/bin/bunny-certbot-hook \
-  https://github.com/cvandesande/cert-manager-webhook-bunny/releases/download/v1.0.2/bunny-certbot-hook-linux-amd64
+  https://github.com/cvandesande/cert-manager-webhook-bunny/releases/download/v1.1.2/bunny-certbot-hook-linux-amd64
 chmod +x /usr/local/bin/bunny-certbot-hook
 ```
 
