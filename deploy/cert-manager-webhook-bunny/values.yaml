@@ -1,0 +1,48 @@
+# Default values for cert-manager-webhook-bunny.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# -- Container image for the webhook.
+# The default points to the GHCR OCI image built by the release workflow.
+# Override with your own registry when deploying from a private build.
+image:
+  repository: ghcr.io/cvandesande/cert-manager-webhook-bunny
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases the chances charts run on environments with
+  # little resources, such as Minikube. If you do want to specify resources, uncomment
+  # the following lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+certManager:
+  # The namespace that cert-manager is deployed into.
+  namespace: cert-manager
+  # The name of the cert-manager controller service account.
+  serviceAccountName: cert-manager
+
+# The GroupName here is used to identify the DNS01 solver webhook.
+# For example, this may be "acme.mycompany.com".
+# This name will need to be referenced in each Issuer's `webhook` stanza to
+# inform cert-manager of where to send ChallengeRequests for ACME dns01 challenges.
+# Only one webhook may be registered for each group name.
+groupName: acme.bunny.net
+
+service:
+  type: ClusterIP

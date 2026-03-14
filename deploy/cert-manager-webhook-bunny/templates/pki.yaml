@@ -1,0 +1,65 @@
+---
+# Create a self-signed Issuer to bootstrap the webhook's CA certificate.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "cert-manager-webhook-bunny.selfSignedIssuer" . | trim }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "cert-manager-webhook-bunny.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+
+---
+# Generate a CA certificate used to sign the webhook serving certificate.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "cert-manager-webhook-bunny.rootCACertificate" . | trim }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "cert-manager-webhook-bunny.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "cert-manager-webhook-bunny.rootCACertificate" . | trim }}
+  duration: 43800h0m0s # 5 years
+  privateKey:
+    rotationPolicy: Always
+  issuerRef:
+    name: {{ include "cert-manager-webhook-bunny.selfSignedIssuer" . | trim }}
+  commonName: {{ printf "ca.%s" (include "cert-manager-webhook-bunny.fullname" .) | quote }}
+  isCA: true
+
+---
+# Create an Issuer that uses the CA certificate to issue the serving certificate.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "cert-manager-webhook-bunny.rootCAIssuer" . | trim }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "cert-manager-webhook-bunny.labels" . | nindent 4 }}
+spec:
+  ca:
+    secretName: {{ include "cert-manager-webhook-bunny.rootCACertificate" . | trim }}
+
+---
+# The actual TLS certificate served by the webhook server.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "cert-manager-webhook-bunny.servingCertificate" . | trim }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "cert-manager-webhook-bunny.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "cert-manager-webhook-bunny.servingCertificate" . | trim }}
+  duration: 8760h0m0s # 1 year
+  privateKey:
+    rotationPolicy: Always
+  issuerRef:
+    name: {{ include "cert-manager-webhook-bunny.rootCAIssuer" . | trim }}
+  dnsNames:
+    - {{ include "cert-manager-webhook-bunny.fullname" . }}
+    - {{ printf "%s.%s" (include "cert-manager-webhook-bunny.fullname" .) .Release.Namespace }}
+    - {{ printf "%s.%s.svc" (include "cert-manager-webhook-bunny.fullname" .) .Release.Namespace }}
+    - {{ printf "%s.%s.svc.cluster.local" (include "cert-manager-webhook-bunny.fullname" .) .Release.Namespace }}

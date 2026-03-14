@@ -1,0 +1,18 @@
+apiVersion: v2
+name: cert-manager-webhook-bunny
+description: A Helm chart for cert-manager DNS01 webhook solver for Bunny DNS (bunny.net)
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - cert-manager
+  - bunny
+  - bunnynet
+  - dns01
+  - webhook
+  - acme
+sources:
+  - https://github.com/cvandesande/cert-manager-webhook-bunny
+maintainers:
+  - name: cvandesande
+    url: https://github.com/cvandesande
