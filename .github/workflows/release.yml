@@ -8,10 +8,13 @@ on:
 # Build each platform natively (no QEMU) then merge into a single multi-arch
 # manifest list so every architecture shares one tag / digest.
 #
-#  build  ──(linux/amd64)──> ubuntu-latest (x64)  ──┐ digest only
-#  build  ──(linux/arm64)──> ubuntu-24.04-arm      ──┤
-#  merge  ──────────────────────────────────────────> manifest list
-#  chart  ──────────────────────────────────────────> OCI helm push
+#  build    ──(linux/amd64)──> ubuntu-latest (x64)  ──┐ digest only
+#  build    ──(linux/arm64)──> ubuntu-24.04-arm      ──┤
+#  merge    ──────────────────────────────────────────> manifest list
+#  release  ──────────────────────────────────────────> GitHub Release (notes)
+#  hooks    ──(linux/amd64)──> ubuntu-latest (x64)  ──┐ certbot binaries
+#  hooks    ──(linux/arm64)──> ubuntu-24.04-arm      ──┘
+#  chart    ──────────────────────────────────────────> OCI helm push
 
 jobs:
 
@@ -136,7 +139,65 @@ jobs:
             ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}
 
   # ─────────────────────────────────────────────────────────────────────────
-  # 3. Package and push the Helm chart as an OCI artifact
+  # 3. Create the GitHub Release with auto-generated release notes
+  #    The hooks job uploads its binaries to this release once it exists.
+  # ─────────────────────────────────────────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: merge
+    permissions:
+      contents: write
+
+    steps:
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # Auto-populate release notes from commits / merged PRs between tags.
+          generate_release_notes: true
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 4. Build certbot hook binaries and attach them to the GitHub Release
+  # ─────────────────────────────────────────────────────────────────────────
+  hooks:
+    name: Build certbot hook (${{ matrix.goarch }})
+    runs-on: ${{ matrix.runner }}
+    needs: release   # release must exist before we upload to it
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goarch: amd64
+            runner: ubuntu-latest
+          - goarch: arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build binary
+        run: |
+          GOOS=linux GOARCH=${{ matrix.goarch }} go build \
+            -trimpath \
+            -ldflags="-s -w" \
+            -o bunny-certbot-hook-linux-${{ matrix.goarch }} \
+            ./cmd/certbot-hook
+
+      - name: Upload binary to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: bunny-certbot-hook-linux-${{ matrix.goarch }}
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 5. Package and push the Helm chart as an OCI artifact
   # ─────────────────────────────────────────────────────────────────────────
   chart:
     name: Push Helm chart (OCI)

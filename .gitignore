@@ -1,5 +1,8 @@
-# compiled binary (root only — must not match deploy/cert-manager-webhook-bunny/)
+# compiled binaries (root only — must not match deploy/cert-manager-webhook-bunny/)
 /cert-manager-webhook-bunny
+/bunny-certbot-hook
+/bunny-certbot-hook-linux-amd64
+/bunny-certbot-hook-linux-arm64
 testdata/bunny/config.json
 testdata/bunny/bunny-credentials.yaml
 _out

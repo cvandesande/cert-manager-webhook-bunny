@@ -60,6 +60,38 @@ build-multiplatform:
 	    --push \
 	    .
 
+# ──────────────────────────────────────────────────────────────────────────────
+# certbot hook binary
+# ──────────────────────────────────────────────────────────────────────────────
+
+HOOK_BINARY := bunny-certbot-hook
+
+# Build the certbot hook binary for the host architecture (requires Go).
+# Output: ./bunny-certbot-hook
+.PHONY: build-hook
+build-hook:
+	GOOS=linux GOARCH=$(ARCH) go build \
+	    -trimpath \
+	    -ldflags="-s -w" \
+	    -o $(HOOK_BINARY) \
+	    ./cmd/certbot-hook
+
+# Build the certbot hook binary inside Docker (no local Go required).
+# Produces two binaries: ./bunny-certbot-hook-linux-amd64 and ./bunny-certbot-hook-linux-arm64
+.PHONY: build-hook-docker
+build-hook-docker:
+	docker run --rm \
+	    -v "$(CURDIR)":/workspace \
+	    -w /workspace \
+	    golang:1.26-alpine \
+	    sh -c 'apk add --no-cache git 1>/dev/null 2>&1 && \
+	           GOOS=linux GOARCH=amd64 go build -buildvcs=false -trimpath -ldflags="-s -w" \
+	               -o bunny-certbot-hook-linux-amd64 ./cmd/certbot-hook && \
+	           GOOS=linux GOARCH=arm64 go build -buildvcs=false -trimpath -ldflags="-s -w" \
+	               -o bunny-certbot-hook-linux-arm64 ./cmd/certbot-hook'
+	@echo "Built: bunny-certbot-hook-linux-amd64 bunny-certbot-hook-linux-arm64"
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Package and push the Helm chart to an OCI registry.
 # Usage: make helm-push-oci CHART_VERSION=1.0.0 OCI_REGISTRY=oci://ghcr.io/cvandesande/charts
 OCI_REGISTRY ?= oci://ghcr.io/cvandesande/charts

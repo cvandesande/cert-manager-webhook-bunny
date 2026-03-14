@@ -1,13 +1,20 @@
 # cert-manager-webhook-bunny
 
-A [cert-manager](https://cert-manager.io) ACME DNS01 webhook solver for [Bunny DNS](https://bunny.net/dns/) (bunny.net).
+Bunny DNS tooling for automated TLS certificate management via ACME DNS-01 challenges. This project provides two ways to use [Bunny DNS](https://bunny.net/dns/) with ACME:
+
+| Tool | Use case |
+|------|----------|
+| **cert-manager webhook** | Kubernetes clusters running [cert-manager](https://cert-manager.io) |
+| **`bunny-certbot-hook`** | Bare-metal / standalone machines running [certbot](https://certbot.eff.org/) |
+
+Both share the same core DNS logic and are published with every release.
 
 This is a maintained fork of the abandoned [gitlab.com/digilol/cert-manager-webhook-bunny](https://gitlab.com/digilol/cert-manager-webhook-bunny) project, updated for:
 - Go 1.26
 - cert-manager v1.20
 - Kubernetes 1.29–1.35
 - Installable via Helm chart
-- Multi-platform image (linux/amd64 + linux/arm64)
+- Multi-platform image and binaries (linux/amd64 + linux/arm64)
 - Distroless runtime (`gcr.io/distroless/static-debian13:nonroot`, UID 65532) — no shell, minimal attack surface
 
 ## Prerequisites
@@ -208,6 +215,75 @@ make test-docker BUNNY_ACCESS_KEY=your-api-key-here TEST_ZONE_NAME=example.com.
 - The test creates and deletes a real `_acme-challenge` TXT record in your Bunny DNS zone
 - In authoritative mode (the default), records are visible immediately on Bunny's nameservers — no propagation delay
 - Tests skip gracefully when `BUNNY_ACCESS_KEY` or `TEST_ZONE_NAME` are not set, so the test suite is safe to run in CI environments that don't have credentials configured
+
+## Certbot (bare metal / standalone)
+
+For machines that run [certbot](https://certbot.eff.org/) directly — without Kubernetes — a small standalone binary is provided: **`bunny-certbot-hook`**.
+
+It is used as certbot's `--manual-auth-hook` and `--manual-cleanup-hook` to create and remove the DNS-01 challenge TXT records in Bunny DNS automatically.
+
+### Download
+
+Pre-built binaries for Linux (amd64 and arm64) are attached to every
+[GitHub Release](https://github.com/cvandesande/cert-manager-webhook-bunny/releases).
+
+```bash
+# Example: download the amd64 binary for v1.0.2
+curl -L -o /usr/local/bin/bunny-certbot-hook \
+  https://github.com/cvandesande/cert-manager-webhook-bunny/releases/download/v1.0.2/bunny-certbot-hook-linux-amd64
+chmod +x /usr/local/bin/bunny-certbot-hook
+```
+
+Replace `amd64` with `arm64` on ARM hosts.
+
+### Usage
+
+Export your Bunny.net **Account API Key** (from [dash.bunny.net/account/apikey](https://dash.bunny.net/account/apikey)):
+
+```bash
+export BUNNY_API_KEY=your-api-key-here
+```
+
+Then run certbot with manual DNS hooks:
+
+```bash
+certbot certonly \
+  --manual \
+  --preferred-challenges dns \
+  --manual-auth-hook    "bunny-certbot-hook present" \
+  --manual-cleanup-hook "bunny-certbot-hook cleanup" \
+  -d "example.com" \
+  -d "*.example.com"
+```
+
+Certbot sets `CERTBOT_DOMAIN` and `CERTBOT_VALIDATION` automatically before invoking each hook. The binary reads `BUNNY_API_KEY` from the environment; no config files are required.
+
+> **Tip:** To avoid typing the export every time, add `BUNNY_API_KEY=...` to a root-only file (e.g. `/etc/bunny.env`) and source it in the hook call:
+>
+> ```bash
+> --manual-auth-hook    "source /etc/bunny.env && bunny-certbot-hook present" \
+> --manual-cleanup-hook "source /etc/bunny.env && bunny-certbot-hook cleanup"
+> ```
+
+### Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `BUNNY_API_KEY` | ✅ | Bunny.net Account API Key |
+| `CERTBOT_DOMAIN` | set by certbot | Domain being validated (e.g. `example.com`) |
+| `CERTBOT_VALIDATION` | set by certbot | Value to place in the TXT record |
+
+### Build from source
+
+**With Go installed** (produces `./bunny-certbot-hook` for the host architecture):
+```bash
+make build-hook
+```
+
+**Without Go** (uses Docker; produces `./bunny-certbot-hook-linux-amd64` and `./bunny-certbot-hook-linux-arm64`):
+```bash
+make build-hook-docker
+```
 
 ## Architecture
 
