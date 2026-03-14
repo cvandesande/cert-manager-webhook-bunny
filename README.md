@@ -22,8 +22,14 @@ This is a maintained fork of the abandoned [gitlab.com/digilol/cert-manager-webh
 
 #### From the OCI registry (recommended)
 
-Releases are published automatically to the GitHub Container Registry as OCI Helm charts:
+Releases are published automatically to the GitHub Container Registry as OCI artifacts.
 
+| Artifact | OCI reference |
+|----------|---------------|
+| Helm chart | `oci://ghcr.io/cvandesande/charts/cert-manager-webhook-bunny` |
+| Container image | `ghcr.io/cvandesande/cert-manager-webhook-bunny` |
+
+**Install a specific version:**
 ```bash
 helm install cert-manager-webhook-bunny \
   oci://ghcr.io/cvandesande/charts/cert-manager-webhook-bunny \
@@ -31,6 +37,23 @@ helm install cert-manager-webhook-bunny \
   --create-namespace \
   --version 1.0.0
 ```
+
+**Upgrade to a newer version:**
+```bash
+helm upgrade cert-manager-webhook-bunny \
+  oci://ghcr.io/cvandesande/charts/cert-manager-webhook-bunny \
+  --namespace cert-manager \
+  --version 1.0.1
+```
+
+**List available chart versions** (requires Helm 3.8+, which supports OCI natively):
+```bash
+# pull the latest and inspect
+helm show chart oci://ghcr.io/cvandesande/charts/cert-manager-webhook-bunny --version 1.0.0
+```
+
+All releases and their changelogs are listed on the
+[GitHub Releases page](https://github.com/cvandesande/cert-manager-webhook-bunny/releases).
 
 #### From source (after cloning)
 
