@@ -26,14 +26,18 @@ test:
 # Usage: make test-docker BUNNY_ACCESS_KEY=xxx TEST_ZONE_NAME=example.com.
 .PHONY: test-docker
 test-docker:
+	@uid=$$(id -u); gid=$$(id -g); \
 	docker run --rm \
 	    -v "$(CURDIR)":/workspace \
 	    -w /workspace \
 	    -e BUNNY_ACCESS_KEY=$(BUNNY_ACCESS_KEY) \
 	    -e TEST_ZONE_NAME=$(TEST_ZONE_NAME) \
+	    --user "$$uid:$$gid" \
+	    -e GOCACHE=/tmp/go-build \
 	    golang:1.26-alpine \
-	    sh -c 'apk add --no-cache git 1>/dev/null 2>&1 && \
-	           go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest 2>&1 && \
+	    sh -c 'set -e ; \
+
+	             go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest 2>&1 && \
 	           ENVTEST_BIN=$$(setup-envtest use $(KUBE_VERSION) --bin-dir /tmp/envtest -p path) && \
 	           TEST_ASSET_ETCD=$$ENVTEST_BIN/etcd \
 	           TEST_ASSET_KUBE_APISERVER=$$ENVTEST_BIN/kube-apiserver \
@@ -80,11 +84,15 @@ build-hook:
 # Produces two binaries: ./bunny-certbot-hook-linux-amd64 and ./bunny-certbot-hook-linux-arm64
 .PHONY: build-hook-docker
 build-hook-docker:
+	@uid=$$(id -u); gid=$$(id -g); \
 	docker run --rm \
 	    -v "$(CURDIR)":/workspace \
 	    -w /workspace \
+	    --user "$$uid:$$gid" \
+	    -e GOCACHE=/tmp/go-build \
 	    golang:1.26-alpine \
-	    sh -c 'apk add --no-cache git 1>/dev/null 2>&1 && \
+	    sh -c 'set -e ; \
+	           go mod tidy && \
 	           GOOS=linux GOARCH=amd64 go build -buildvcs=false -trimpath -ldflags="-s -w" \
 	               -o bunny-certbot-hook-linux-amd64 ./cmd/certbot-hook && \
 	           GOOS=linux GOARCH=arm64 go build -buildvcs=false -trimpath -ldflags="-s -w" \
