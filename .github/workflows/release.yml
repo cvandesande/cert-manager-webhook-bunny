@@ -194,8 +194,9 @@ jobs:
           go-version-file: go.mod
 
       - name: Build binary
+        # CGO off: static binary with no glibc dependency, so it runs on any Linux host.
         run: |
-          GOOS=linux GOARCH=${{ matrix.goarch }} go build \
+          CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build \
             -trimpath \
             -ldflags="-s -w" \
             -o bunny-certbot-hook-linux-${{ matrix.goarch }} \
