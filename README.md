@@ -10,8 +10,8 @@ Bunny DNS tooling for automated TLS certificate management via ACME DNS-01 chall
 Both share the same core DNS logic and are published with every release.
 
 This is a maintained fork of the abandoned [gitlab.com/digilol/cert-manager-webhook-bunny](https://gitlab.com/digilol/cert-manager-webhook-bunny) project, updated for:
-- Go 1.26
-- cert-manager v1.20
+- Go 1.27
+- cert-manager v1.21
 - Kubernetes 1.29–1.35
 - Installable via Helm chart
 - Multi-platform image and binaries (linux/amd64 + linux/arm64)
@@ -259,6 +259,8 @@ certbot certonly \
 ```
 
 Certbot sets `CERTBOT_DOMAIN` and `CERTBOT_VALIDATION` automatically before invoking each hook. The binary auto-discovers the correct Bunny DNS zone, so both apex domains (`example.com`) and subdomains (`sub.example.com`) work without any extra configuration.
+
+After creating the TXT record, the hook polls the zone's authoritative Bunny nameservers every 2 seconds, for up to 120 seconds, and returns only when every nameserver serves the record. Certbot then asks the CA to validate. If the record is still not visible after 120 seconds, or the nameservers cannot be looked up, the hook prints a warning and exits 0, so certbot still tries validation. The host needs outbound UDP port 53 to the Bunny nameservers.
 
 For **auto-renewal**, add these lines to `/etc/letsencrypt/renewal/example.com.conf`:
 

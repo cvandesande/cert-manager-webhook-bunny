@@ -1,5 +1,7 @@
 // bunny-certbot-hook is a standalone certbot manual-hook binary that manages
-// Bunny.net DNS TXT records for ACME DNS-01 challenges.
+// Bunny.net DNS TXT records for ACME DNS-01 challenges. The present command
+// waits until the zone's authoritative nameservers serve the new record before
+// it returns.
 //
 // Certbot invokes it twice per certificate request:
 //
@@ -23,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	bunny "github.com/simplesurance/bunny-go"
 
@@ -76,6 +79,7 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("bunny-certbot-hook: TXT record created successfully")
+		waitForPropagation(ctx, zone, fqdn, validation)
 
 	case "cleanup":
 		fmt.Printf("bunny-certbot-hook: removing TXT record %s (zone %s)\n", fqdn, zone)
@@ -92,6 +96,34 @@ func main() {
 }
 
 const defaultKeyFile = "/etc/bunny/api-key"
+
+// How long and how often `present` waits for the new TXT record to appear on
+// every authoritative nameserver before handing control back to certbot.
+const (
+	propagationTimeout  = 120 * time.Second
+	propagationInterval = 2 * time.Second
+)
+
+// waitForPropagation waits until every authoritative nameserver of zone serves
+// the TXT record, or until propagationTimeout passes. Failures are only
+// warnings: certbot must still get the chance to ask the CA to validate.
+func waitForPropagation(ctx context.Context, zone, fqdn, value string) {
+	ctx, cancel := context.WithTimeout(ctx, propagationTimeout)
+	defer cancel()
+
+	servers, err := bunnydns.AuthoritativeNameservers(ctx, zone)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "bunny-certbot-hook: warning: cannot look up nameservers for %s: %v; not waiting for propagation\n", zone, err)
+		return
+	}
+	fmt.Printf("bunny-certbot-hook: waiting for TXT record on %d authoritative nameservers (up to %s)\n", len(servers), propagationTimeout)
+
+	if err := bunnydns.WaitForTXT(ctx, servers, fqdn, value, propagationInterval); err != nil {
+		fmt.Fprintf(os.Stderr, "bunny-certbot-hook: warning: %v; continuing\n", err)
+		return
+	}
+	fmt.Println("bunny-certbot-hook: TXT record is visible on all authoritative nameservers")
+}
 
 // resolveAPIKey returns the Bunny.net API key using the following precedence:
 //  1. BUNNY_API_KEY environment variable (plain value)

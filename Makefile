@@ -34,7 +34,7 @@ test-docker:
 	    -e TEST_ZONE_NAME=$(TEST_ZONE_NAME) \
 	    --user "$$uid:$$gid" \
 	    -e GOCACHE=/tmp/go-build \
-	    golang:1.26-alpine \
+	    golang:1.27-alpine \
 	    sh -c 'set -e ; \
 
 	             go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest 2>&1 && \
@@ -90,7 +90,7 @@ build-hook-docker:
 	    -w /workspace \
 	    --user "$$uid:$$gid" \
 	    -e GOCACHE=/tmp/go-build \
-	    golang:1.26-alpine \
+	    golang:1.27-alpine \
 	    sh -c 'set -e ; \
 	           go mod tidy && \
 	           GOOS=linux GOARCH=amd64 go build -buildvcs=false -trimpath -ldflags="-s -w" \
