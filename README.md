@@ -10,8 +10,8 @@ Bunny DNS tooling for automated TLS certificate management via ACME DNS-01 chall
 Both share the same core DNS logic and are published with every release.
 
 This is a maintained fork of the abandoned [gitlab.com/digilol/cert-manager-webhook-bunny](https://gitlab.com/digilol/cert-manager-webhook-bunny) project, updated for:
-- Go 1.26
-- cert-manager v1.20
+- Go 1.27
+- cert-manager v1.21
 - Kubernetes 1.29–1.35
 - Installable via Helm chart
 - Multi-platform image and binaries (linux/amd64 + linux/arm64)
