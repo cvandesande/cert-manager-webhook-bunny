@@ -260,6 +260,8 @@ certbot certonly \
 
 Certbot sets `CERTBOT_DOMAIN` and `CERTBOT_VALIDATION` automatically before invoking each hook. The binary auto-discovers the correct Bunny DNS zone, so both apex domains (`example.com`) and subdomains (`sub.example.com`) work without any extra configuration.
 
+After creating the TXT record, the hook polls the zone's authoritative Bunny nameservers every 2 seconds, for up to 120 seconds, and returns only when every nameserver serves the record. Certbot then asks the CA to validate. If the record is still not visible after 120 seconds, or the nameservers cannot be looked up, the hook prints a warning and exits 0, so certbot still tries validation. The host needs outbound UDP port 53 to the Bunny nameservers.
+
 For **auto-renewal**, add these lines to `/etc/letsencrypt/renewal/example.com.conf`:
 
 ```ini
